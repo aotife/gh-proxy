@@ -11,7 +11,7 @@ const Config = {
     jsdelivr: 0
 }
 
-const whiteList = [] // 白名单，路径里面有包含字符的才会通过，e.g. ['/username/']
+const whiteList = [] // 白名单
 
 /** @type {RequestInit} */
 const PREFLIGHT_INIT = {
@@ -22,7 +22,6 @@ const PREFLIGHT_INIT = {
         'access-control-max-age': '1728000',
     }),
 }
-
 
 const exp1 = /^(?:https?:\/\/)?github\.com\/.+?\/.+?\/(?:releases|archive)\/.*$/i
 const exp2 = /^(?:https?:\/\/)?github\.com\/.+?\/.+?\/(?:blob|raw)\/.*$/i
@@ -41,7 +40,6 @@ function makeRes(body, status = 200, headers = {}) {
     return new Response(body, {status, headers})
 }
 
-
 /**
  * @param {string} urlStr
  */
@@ -53,14 +51,6 @@ function newUrl(urlStr) {
     }
 }
 
-
-addEventListener('fetch', e => {
-    const ret = fetchHandler(e)
-        .catch(err => makeRes('cfworker error:\n' + err.stack, 502))
-    e.respondWith(ret)
-})
-
-
 function checkUrl(u) {
     for (let i of [exp1, exp2, exp3, exp4, exp5, exp6]) {
         if (u.search(i) === 0) {
@@ -70,11 +60,23 @@ function checkUrl(u) {
     return false
 }
 
+// --- 核心转换部分开始 ---
+
+export default {
+    async fetch(request, env, ctx) {
+        try {
+            // 兼容原有的 fetchHandler 逻辑
+            return await fetchHandler(request);
+        } catch (err) {
+            return makeRes('cfworker error:\n' + err.stack, 502);
+        }
+    }
+};
+
 /**
- * @param {FetchEvent} e
+ * @param {Request} req
  */
-async function fetchHandler(e) {
-    const req = e.request
+async function fetchHandler(req) {
     const urlStr = req.url
     const urlObj = new URL(urlStr)
     let path = urlObj.searchParams.get('q')
@@ -101,6 +103,7 @@ async function fetchHandler(e) {
     }
 }
 
+// --- 核心转换部分结束 ---
 
 /**
  * @param {Request} req
@@ -144,9 +147,7 @@ function httpHandler(req, pathname) {
     return proxy(urlObj, reqInit)
 }
 
-
 /**
- *
  * @param {URL} urlObj
  * @param {RequestInit} reqInit
  */
@@ -178,4 +179,3 @@ async function proxy(urlObj, reqInit) {
         headers: resHdrNew,
     })
 }
-
