@@ -3,15 +3,13 @@
 /**
  * static files (404.html, sw.js, conf.js)
  */
-const ASSET_URL = 'https://hunshcn.github.io/gh-proxy/'
+const ASSET_URL = 'https://aotife.github.io/gh-proxy/'
 // 前缀，如果自定义路由为example.com/gh/*，将PREFIX改为 '/gh/'，注意，少一个杠都会错！
 const PREFIX = '/'
 // 分支文件使用jsDelivr镜像的开关，0为关闭，默认关闭
 const Config = {
     jsdelivr: 0
 }
-
-const whiteList = [] // 白名单
 
 /** @type {RequestInit} */
 const PREFLIGHT_INIT = {
@@ -60,18 +58,15 @@ function checkUrl(u) {
     return false
 }
 
-// --- 核心转换部分开始 ---
-
+/**
+ * Cloudflare Pages 导出模块
+ */
 export default {
     async fetch(request, env, ctx) {
-        try {
-            // 兼容原有的 fetchHandler 逻辑
-            return await fetchHandler(request);
-        } catch (err) {
-            return makeRes('cfworker error:\n' + err.stack, 502);
-        }
+        return fetchHandler(request)
+            .catch(err => makeRes('cfworker error:\n' + err.stack, 502))
     }
-};
+}
 
 /**
  * @param {Request} req
@@ -83,8 +78,10 @@ async function fetchHandler(req) {
     if (path) {
         return Response.redirect('https://' + urlObj.host + PREFIX + path, 301)
     }
-    // cfworker 会把路径中的 `//` 合并成 `/`
+    
+    // 这里的逻辑保持不变
     path = urlObj.href.substr(urlObj.origin.length + PREFIX.length).replace(/^https?:\/+/, 'https://')
+    
     if (path.search(exp1) === 0 || path.search(exp5) === 0 || path.search(exp6) === 0 || path.search(exp3) === 0 || path.search(exp4) === 0) {
         return httpHandler(req, path)
     } else if (path.search(exp2) === 0) {
@@ -103,8 +100,6 @@ async function fetchHandler(req) {
     }
 }
 
-// --- 核心转换部分结束 ---
-
 /**
  * @param {Request} req
  * @param {string} pathname
@@ -112,7 +107,6 @@ async function fetchHandler(req) {
 function httpHandler(req, pathname) {
     const reqHdrRaw = req.headers
 
-    // preflight
     if (req.method === 'OPTIONS' &&
         reqHdrRaw.has('access-control-request-headers')
     ) {
@@ -122,16 +116,6 @@ function httpHandler(req, pathname) {
     const reqHdrNew = new Headers(reqHdrRaw)
 
     let urlStr = pathname
-    let flag = !Boolean(whiteList.length)
-    for (let i of whiteList) {
-        if (urlStr.includes(i)) {
-            flag = true
-            break
-        }
-    }
-    if (!flag) {
-        return new Response("blocked", {status: 403})
-    }
     if (urlStr.startsWith('github')) {
         urlStr = 'https://' + urlStr
     }
